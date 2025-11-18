@@ -1,84 +1,100 @@
 import numpy as np
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import r2_score
+from sklearn.neural_network import MLPClassifier
+import tensorflow as tf
+from tensorflow import keras
 
-np.random.seed(1)
+print("=" * 60)
+print("BACKPROPAGATION NEURAL NETWORK")
+print("=" * 60)
 
-# -------------------------
-# Synthetic dataset (non-linear)
-# -------------------------
-N = 200
-X = np.random.uniform(-2, 2, (N,2))  # 2 features
+# Training data (XOR problem)
+X = np.array([[0, 0], [0, 1], [1, 0], [1, 1]])
+y = np.array([0, 1, 1, 0])
 
-# non-linear but still learnable with linear hidden layer
-y = 2*X[:,0] + 3*X[:,1] + 0.5*np.sin(X[:,0]*X[:,1]) + 0.1*np.random.randn(N)
-y = y.reshape(-1,1)
+print("\nTraining Data (XOR Gate):")
+for i in range(len(X)):
+    print(f"Input: {X[i]} -> Target: {y[i]}")
 
-# Train/test split
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+# ==========================================
+# METHOD 1: Using sklearn
+# ==========================================
+print("\n" + "=" * 60)
+print("METHOD 1: Backpropagation using sklearn")
+print("=" * 60)
 
-# Scale features
-X_mean, X_std = X_train.mean(axis=0), X_train.std(axis=0)
-X_train = (X_train - X_mean)/X_std
-X_test = (X_test - X_mean)/X_std
+# Create neural network with backpropagation
+model_sklearn = MLPClassifier(hidden_layer_sizes=(4,),
+                              activation='relu',
+                              solver='sgd',  # Stochastic Gradient Descent
+                              learning_rate_init=0.1,
+                              max_iter=5000,
+                              random_state=42)
 
-y_mean, y_std = y_train.mean(), y_train.std()
-y_train = (y_train - y_mean)/y_std
-y_test = (y_test - y_mean)/y_std
+print("\nTraining...")
+model_sklearn.fit(X, y)
 
-# -------------------------
-# Your exact backprop code
-# -------------------------
-def backprop(X,y,lr,epochs,neurons):
-    data,features = X.shape
-    w1 = np.random.randn(features,neurons)
-    b1 = np.zeros(neurons)
-    w2 = np.random.randn(neurons,1)   
-    b2 = 0
+# Predictions
+predictions_sklearn = model_sklearn.predict(X)
 
-    for i in range(epochs):
-        for j in range(X.shape[0]):
-            xj = X[j].reshape(1,-1)
-            yj = y[j].reshape(1,1)
+print("\nResults:")
+for i in range(len(X)):
+    print(f"Input: {X[i]} -> Predicted: {predictions_sklearn[i]} (Target: {y[i]})")
 
-            net1 = np.dot(xj,w1) + b1
-            net2 = np.dot(net1,w2) + b2
+accuracy_sklearn = np.mean(predictions_sklearn == y) * 100
+print(f"\nAccuracy: {accuracy_sklearn:.2f}%")
 
-            error = yj - net2
+# ==========================================
+# METHOD 2: Using TensorFlow/Keras
+# ==========================================
+print("\n" + "=" * 60)
+print("METHOD 2: Backpropagation using TensorFlow")
+print("=" * 60)
 
-            # backprop
-            delw2 = -2 * error * net1.T
-            w2 -= lr * delw2
+# Create neural network model
+model_tf = keras.Sequential([
+    keras.layers.Dense(4, activation='relu', input_shape=(2,)),
+    keras.layers.Dense(1, activation='sigmoid')
+])
 
-            delb2 = -2 * error
-            b2 -= lr * delb2
+# Compile model (backpropagation happens automatically)
+model_tf.compile(optimizer='adam',
+                 loss='binary_crossentropy',
+                 metrics=['accuracy'])
 
-            delb1 = -2 * error * w2.T
-            delw1 = -2 * error * xj.T @ w2.T
-            w1 -= lr * delw1
-            b1 -= lr * delb1.flatten()
+print("\nTraining...")
+history = model_tf.fit(X, y, epochs=1000, verbose=0)
 
-        if i % 500 == 0:
-            preds = (np.dot(X,w1) + b1) @ w2 + b2
-            loss = np.mean((y - preds)**2)
-            print(f"Epoch {i}, Loss: {loss:.4f}")
+# Predictions
+predictions_tf = (model_tf.predict(X) > 0.5).astype(int).flatten()
 
-        # NaN check
-        if np.isnan(w1).any() or np.isnan(w2).any():
-            print("NaN detected at epoch", i)
-            break
+print("\nResults:")
+for i in range(len(X)):
+    print(f"Input: {X[i]} -> Predicted: {predictions_tf[i]} (Target: {y[i]})")
 
-    return w1,b1,w2,b2
+# Evaluate
+loss, accuracy_tf = model_tf.evaluate(X, y, verbose=0)
+print(f"\nAccuracy: {accuracy_tf * 100:.2f}%")
+print(f"Loss: {loss:.4f}")
 
-# -------------------------
-# Train
-# -------------------------
-w1,b1,w2,b2 = backprop(X_train, y_train, lr=0.001, epochs=3000, neurons=5)
+# ==========================================
+# Testing with new data
+# ==========================================
+print("\n" + "=" * 60)
+print("Testing with New Patterns")
+print("=" * 60)
 
-# -------------------------
-# Predict
-# -------------------------
-y_preds = (np.dot(X_test,w1) + b1) @ w2 + b2
+test_data = np.array([[0, 0], [1, 1]])
 
-print("\nR2 Score:", r2_score(y_test, y_preds))
-print("Test MSE:", np.mean((y_test - y_preds)**2))
+print("\nsklearn predictions:")
+test_pred_sklearn = model_sklearn.predict(test_data)
+for i in range(len(test_data)):
+    print(f"Input: {test_data[i]} -> Predicted: {test_pred_sklearn[i]}")
+
+print("\nTensorFlow predictions:")
+test_pred_tf = (model_tf.predict(test_data, verbose=0) > 0.5).astype(int).flatten()
+for i in range(len(test_data)):
+    print(f"Input: {test_data[i]} -> Predicted: {test_pred_tf[i]}")
+
+print("\n" + "=" * 60)
+print("Backpropagation Completed!")
+print("=" * 60)
